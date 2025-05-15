@@ -3,31 +3,67 @@ package reporter
 import (
 	"fmt"
 	"gopkg.in/gomail.v2"
+	"log"
+
+	"backend/configs"
 )
 
-func newEmailReport() emailReport {
-	return emailReport{}
+// NewEmailReporter creates a new EmailReporter instance with configuration from environment
+func NewEmailReporter() *EmailReporter {
+	config := configs.GetConfig()
+	
+	return &EmailReporter{
+		SMTPServer:   config.Email.SMTPServer,
+		SMTPPort:     config.Email.SMTPPort,
+		SMTPUsername: config.Email.SMTPUsername,
+		SMTPPassword: config.Email.SMTPPassword,
+		EmailFrom:    config.Email.EmailFrom,
+		EmailTo:      config.Email.EmailTo,
+	}
 }
 
-type emailReport struct {
-	addr     string
-	userName string
-	password string
+// EmailReporter implements the Reporter interface for sending reports via email
+type EmailReporter struct {
+	SMTPServer   string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	EmailFrom    string
+	EmailTo      string
 }
 
-func (e emailReport) Send(text string) error {
+// For backwards compatibility
+func newEmailReport() *EmailReporter {
+	return NewEmailReporter()
+}
+
+// Send sends an email with the provided text content
+func (e *EmailReporter) Send(text string) error {
+	if e.SMTPUsername == "" || e.SMTPPassword == "" {
+		return fmt.Errorf("SMTP credentials are not configured")
+	}
+	
+	if e.EmailFrom == "" || e.EmailTo == "" {
+		return fmt.Errorf("email addresses are not configured")
+	}
+	
 	m := gomail.NewMessage()
-	m.SetHeader("From", e.addr)
-	m.SetHeader("To", e.addr)
+	m.SetHeader("From", e.EmailFrom)
+	m.SetHeader("To", e.EmailTo)
 	m.SetHeader("Subject", "Report!")
 	m.SetBody("text/html", text)
-	// m.Attach("/home/Alex/lolcat.jpg")
 
-	d := gomail.NewDialer("smtp.163.com", 25, e.userName, e.password)
+	log.Printf("Sending email report from %s to %s via %s", 
+		e.EmailFrom, e.EmailTo, e.SMTPServer)
 
-	// Send the email to Bob, Cora and Dan.
+	d := gomail.NewDialer(e.SMTPServer, e.SMTPPort, e.SMTPUsername, e.SMTPPassword)
+
+	// Send the email
 	if err := d.DialAndSend(m); err != nil {
-		return fmt.Errorf("send email err: %v", err)
+		log.Printf("Failed to send email: %v", err)
+		return fmt.Errorf("send email error: %v", err)
 	}
+	
+	log.Printf("Email report sent successfully")
 	return nil
 }
