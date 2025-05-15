@@ -1,8 +1,9 @@
 package main
 
 import (
-	"backend/configs"
+	"github.com/gin-gonic/gin"
 	"backend/routes"
+	"backend/configs"
 	"log"
 )
 
@@ -14,10 +15,10 @@ func main() {
 
 	// Setup router using the routes package
 	r := routes.SetupRouter()
-
+	
 	// Get server config
 	config := configs.GetConfig()
-
+	
 	// Listen and serve on the configured address
 	if err := r.Run(config.GetServerAddress()); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

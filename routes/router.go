@@ -5,8 +5,11 @@ import (
 	"strconv"
 	"time"
 
-	"backend/controllers"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/time/rate"
+
+	"backend/controllers"
+	"backend/middleware"
 )
 
 // SetupRouter initializes the gin router with all application routes
@@ -46,6 +49,26 @@ func SetupRouter() *gin.Engine {
 
 		// Legacy report route
 		api.POST("/report", controllers.ReportHandler)
+
+		// Stock routes with rate limiting and optional authentication
+		stockGroup := api.Group("/stocks")
+		stockGroup.Use(rateLimitMiddleware(5, 10)) // Limit to 5 requests per 10 seconds
+		{
+			// Initialize stock controller
+			stockController := controllers.NewStockController()
+			
+			// Public stock data endpoints
+			stockController.RegisterRoutes(api)
+			
+			// Protected stock management endpoints
+			stockAdmin := stockGroup.Group("/admin")
+			stockAdmin.Use(middleware.JWTAuthMiddleware())
+			stockAdmin.Use(middleware.RequireRole("admin", "analyst"))
+			{
+				stockAdmin.POST("/cache/clear", stockController.ClearCache)
+				stockAdmin.GET("/cache/stats", stockController.GetCacheStats)
+			}
+		}
 
 		// Admin routes with authentication
 		adminGroup := api.Group("/admin")
@@ -149,5 +172,25 @@ func loggingMiddleware() gin.HandlerFunc {
 				"INFO | " + method + " | " + path + " | " +
 					strconv.Itoa(statusCode) + " | " + latency.String() + "\n"))
 		}
+	}
+}
+
+// rateLimitMiddleware implements a request rate limiter
+func rateLimitMiddleware(requestsPerPeriod int, periodInSeconds int) gin.HandlerFunc {
+	// Create a rate limiter that allows requestsPerPeriod requests per periodInSeconds
+	limiter := rate.NewLimiter(rate.Limit(float64(requestsPerPeriod)/float64(periodInSeconds)), requestsPerPeriod)
+	
+	return func(c *gin.Context) {
+		// If rate limit exceeded, return 429 Too Many Requests
+		if !limiter.Allow() {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"status":  "error",
+				"message": "Rate limit exceeded. Please try again later.",
+			})
+			c.Abort()
+			return
+		}
+		
+		c.Next()
 	}
 }
