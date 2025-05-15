@@ -18,13 +18,13 @@ type StockCache struct {
 	data map[string]map[time.Time]*cacheEntry
 
 	// Eviction policy data structures
-	evictionList *list.List                      // Linked list for tracking access order (LRU)
+	evictionList *list.List                             // Linked list for tracking access order (LRU)
 	evictionMap  map[string]map[time.Time]*list.Element // Maps code and timestamp to list elements
 
 	// Configuration
-	capacity    int           // Maximum number of items in cache
-	defaultTTL  time.Duration // Default time-to-live for cache entries
-	evictionPolicy string     // Eviction policy: "lru", "fifo", or "ttl"
+	capacity       int           // Maximum number of items in cache
+	defaultTTL     time.Duration // Default time-to-live for cache entries
+	evictionPolicy string        // Eviction policy: "lru", "fifo", or "ttl"
 
 	// Statistics
 	hits        int64
@@ -49,18 +49,18 @@ type CacheKey struct {
 
 // CacheOptions configures the cache behavior
 type CacheOptions struct {
-	Capacity       int           // Maximum number of items to store
-	DefaultTTL     time.Duration // Default TTL for entries
-	EvictionPolicy string        // "lru", "fifo", or "ttl"
+	Capacity        int           // Maximum number of items to store
+	DefaultTTL      time.Duration // Default TTL for entries
+	EvictionPolicy  string        // "lru", "fifo", or "ttl"
 	CleanupInterval time.Duration // How often to clean expired entries
 }
 
 // DefaultCacheOptions returns sensible default options
 func DefaultCacheOptions() CacheOptions {
 	return CacheOptions{
-		Capacity:       10000,        // Store up to 10,000 stock data points
-		DefaultTTL:     24 * time.Hour, // Cache entries expire after 24 hours
-		EvictionPolicy: "lru",        // Least Recently Used eviction
+		Capacity:        10000,            // Store up to 10,000 stock data points
+		DefaultTTL:      24 * time.Hour,   // Cache entries expire after 24 hours
+		EvictionPolicy:  "lru",            // Least Recently Used eviction
 		CleanupInterval: 10 * time.Minute, // Clean up every 10 minutes
 	}
 }
@@ -181,8 +181,8 @@ func (c *StockCache) GetRange(code string, start, end time.Time) []models.Stock 
 		}
 
 		// Check if timestamp is within range
-		if (timestamp.Equal(start) || timestamp.After(start)) && 
-		   (timestamp.Equal(end) || timestamp.Before(end)) {
+		if (timestamp.Equal(start) || timestamp.After(start)) &&
+			(timestamp.Equal(end) || timestamp.Before(end)) {
 			result = append(result, *entry.stock)
 
 			// If using LRU, update position for each accessed entry
@@ -233,7 +233,7 @@ func (c *StockCache) Set(stock *models.Stock, ttl time.Duration) {
 	}
 
 	// Check if we're updating an existing entry
-	if existingEntry, exists := c.data[code][timestamp]; exists {
+	if _, exists := c.data[code][timestamp]; exists {
 		c.data[code][timestamp] = entry
 
 		// Update the eviction list if using LRU or FIFO
@@ -257,7 +257,7 @@ func (c *StockCache) Set(stock *models.Stock, ttl time.Duration) {
 		// Add to eviction structures
 		key := CacheKey{Code: code, Timestamp: timestamp}
 		var elem *list.Element
-		
+
 		if c.evictionPolicy == "lru" || c.evictionPolicy == "fifo" {
 			elem = c.evictionList.PushFront(key)
 			c.evictionMap[code][timestamp] = elem
@@ -284,7 +284,7 @@ func (c *StockCache) Remove(code string, timestamp time.Time) {
 		if _, exists := codeMap[timestamp]; exists {
 			// Remove from data map
 			delete(codeMap, timestamp)
-			
+
 			// Remove from eviction structures
 			if c.evictionPolicy == "lru" || c.evictionPolicy == "fifo" {
 				if elem, ok := c.evictionMap[code][timestamp]; ok {
@@ -307,7 +307,7 @@ func (c *StockCache) RemoveCode(code string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if codeMap, exists := c.data[code]; exists {
+	if _, exists := c.data[code]; exists {
 		// Remove all entries for this code from the eviction list
 		if c.evictionPolicy == "lru" || c.evictionPolicy == "fifo" {
 			if evictionMap, ok := c.evictionMap[code]; ok {
@@ -360,14 +360,14 @@ func (c *StockCache) Stats() map[string]interface{} {
 	}
 
 	stats := map[string]interface{}{
-		"size":          c.Size(),
-		"capacity":      c.capacity,
-		"hits":          c.hits,
-		"misses":        c.misses,
-		"hit_rate":      hitRate,
-		"evictions":     c.evictions,
-		"insertions":    c.insertions,
-		"last_cleanup":  c.lastCleanup,
+		"size":            c.Size(),
+		"capacity":        c.capacity,
+		"hits":            c.hits,
+		"misses":          c.misses,
+		"hit_rate":        hitRate,
+		"evictions":       c.evictions,
+		"insertions":      c.insertions,
+		"last_cleanup":    c.lastCleanup,
 		"eviction_policy": c.evictionPolicy,
 	}
 
@@ -397,7 +397,7 @@ func (c *StockCache) Stats() map[string]interface{} {
 func (c *StockCache) Cleanup() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	return c.cleanupLocked()
 }
 
@@ -405,13 +405,13 @@ func (c *StockCache) Cleanup() int {
 func (c *StockCache) cleanupLocked() int {
 	removed := 0
 	now := time.Now()
-	
+
 	for code, codeMap := range c.data {
 		for timestamp, entry := range codeMap {
 			if now.After(entry.expiry) {
 				// Remove from data map
 				delete(codeMap, timestamp)
-				
+
 				// Remove from eviction structures
 				if c.evictionPolicy == "lru" || c.evictionPolicy == "fifo" {
 					if elem, ok := c.evictionMap[code][timestamp]; ok {
@@ -419,18 +419,18 @@ func (c *StockCache) cleanupLocked() int {
 						delete(c.evictionMap[code], timestamp)
 					}
 				}
-				
+
 				removed++
 			}
 		}
-		
+
 		// If this code's map is now empty, remove it too
 		if len(codeMap) == 0 {
 			delete(c.data, code)
 			delete(c.evictionMap, code)
 		}
 	}
-	
+
 	c.lastCleanup = now
 	return removed
 }
@@ -452,16 +452,16 @@ func (c *StockCache) startCleanupRoutine(interval time.Duration) {
 func (c *StockCache) evictIfNeeded() {
 	// Check total size
 	currentSize := c.Size()
-	
+
 	// If we're under capacity, nothing to do
 	if currentSize <= c.capacity {
 		return
 	}
-	
+
 	// Need to evict items until we're back under capacity
 	toEvict := currentSize - c.capacity
 	evicted := 0
-	
+
 	switch c.evictionPolicy {
 	case "lru", "fifo":
 		// For both LRU and FIFO, we remove from the back of the list
@@ -471,7 +471,7 @@ func (c *StockCache) evictIfNeeded() {
 			if elem == nil {
 				break
 			}
-			
+
 			// Extract the key
 			key, ok := elem.Value.(CacheKey)
 			if !ok {
@@ -479,35 +479,35 @@ func (c *StockCache) evictIfNeeded() {
 				c.evictionList.Remove(elem)
 				continue
 			}
-			
+
 			// Remove from all structures
 			if codeMap, exists := c.data[key.Code]; exists {
 				if _, exists := codeMap[key.Timestamp]; exists {
 					delete(codeMap, key.Timestamp)
-					
+
 					// If this was the last entry for this code, remove the code map
 					if len(codeMap) == 0 {
 						delete(c.data, key.Code)
 					}
 				}
 			}
-			
+
 			if codeEvMap, exists := c.evictionMap[key.Code]; exists {
 				delete(codeEvMap, key.Timestamp)
-				
+
 				// If this was the last entry for this code, remove the code map
 				if len(codeEvMap) == 0 {
 					delete(c.evictionMap, key.Code)
 				}
 			}
-			
+
 			// Remove from list
 			c.evictionList.Remove(elem)
-			
+
 			evicted++
 			c.evictions++
 		}
-		
+
 	case "ttl":
 		// For TTL, we remove the entries closest to expiration
 		// This requires scanning all entries
@@ -516,9 +516,9 @@ func (c *StockCache) evictIfNeeded() {
 			timestamp time.Time
 			expiry    time.Time
 		}
-		
+
 		candidates := make([]evictionCandidate, 0, toEvict)
-		
+
 		// Collect all entries with their expiry times
 		for code, codeMap := range c.data {
 			for timestamp, entry := range codeMap {
@@ -529,7 +529,7 @@ func (c *StockCache) evictIfNeeded() {
 				})
 			}
 		}
-		
+
 		// Sort by expiry time (closest to expiring first)
 		// Simple bubble sort for simplicity - in production code, use a more efficient algorithm
 		for i := 0; i < len(candidates)-1; i++ {
@@ -539,21 +539,21 @@ func (c *StockCache) evictIfNeeded() {
 				}
 			}
 		}
-		
+
 		// Evict the required number of entries, starting with those closest to expiration
 		for i := 0; i < toEvict && i < len(candidates); i++ {
 			candidate := candidates[i]
-			
+
 			// Remove from data map
 			if codeMap, exists := c.data[candidate.code]; exists {
 				delete(codeMap, candidate.timestamp)
-				
+
 				// If this was the last entry for this code, remove the code map
 				if len(codeMap) == 0 {
 					delete(c.data, candidate.code)
 				}
 			}
-			
+
 			// Remove from eviction structures if applicable
 			if c.evictionPolicy == "lru" || c.evictionPolicy == "fifo" {
 				if codeEvMap, exists := c.evictionMap[candidate.code]; exists {
@@ -561,14 +561,14 @@ func (c *StockCache) evictIfNeeded() {
 						c.evictionList.Remove(elem)
 					}
 					delete(codeEvMap, candidate.timestamp)
-					
+
 					// If this was the last entry for this code, remove the code map
 					if len(codeEvMap) == 0 {
 						delete(c.evictionMap, candidate.code)
 					}
 				}
 			}
-			
+
 			evicted++
 			c.evictions++
 		}
@@ -580,7 +580,7 @@ func (c *StockCache) updateLRUPosition(code string, timestamp time.Time) {
 	if c.evictionPolicy != "lru" {
 		return
 	}
-	
+
 	// If this code+timestamp exists in our eviction map, move it to front of list
 	if codeEvMap, exists := c.evictionMap[code]; exists {
 		if elem, exists := codeEvMap[timestamp]; exists {

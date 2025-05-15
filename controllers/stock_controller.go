@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"backend/middleware"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -13,8 +14,6 @@ import (
 	"backend/models"
 	"backend/service/cache"
 	"backend/service/stock"
-	"backend/utils"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -133,7 +132,7 @@ func (sc *StockController) GetStockData(c *gin.Context) {
 
 	// Try to get data from cache first
 	cachedData := sc.cache.GetRange(req.Code, start, end)
-	
+
 	// If not in cache or insufficient data, fetch from provider
 	if len(cachedData) == 0 {
 		stockData, err := sc.provider.FetchMinuteData(context.Background(), req.Code, start, end)
@@ -148,7 +147,7 @@ func (sc *StockController) GetStockData(c *gin.Context) {
 
 		// Store in cache for future requests
 		sc.cache.SetBatch(stockData, sc.cacheTTL)
-		
+
 		// Use the fetched data
 		cachedData = stockData
 	}
@@ -212,7 +211,7 @@ func (sc *StockController) GetLatestStockData(c *gin.Context) {
 
 		// Cache the new data
 		sc.cache.Set(latestStock, sc.cacheTTL)
-		
+
 		c.JSON(http.StatusOK, gin.H{
 			"status": "success",
 			"data":   latestStock,
@@ -291,7 +290,7 @@ func (sc *StockController) GetBatchStockData(c *gin.Context) {
 	}
 
 	// Store all data in cache
-	for code, stocks := range batchData {
+	for _, stocks := range batchData {
 		sc.cache.SetBatch(stocks, sc.cacheTTL)
 	}
 
@@ -340,7 +339,7 @@ func (sc *StockController) parseDateRange(startStr, endStr string) (time.Time, t
 	// Default to today if no dates provided
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	
+
 	// Default range: last 7 days to today
 	start := today.AddDate(0, 0, -7)
 	end := today
@@ -421,16 +420,22 @@ func (sc *StockController) countRecords(batchData map[string][]models.Stock) map
 // RegisterRoutes registers the stock controller routes on the provided router group
 func (sc *StockController) RegisterRoutes(router *gin.RouterGroup) {
 	stocks := router.Group("/stocks")
+
+	stocks.Use(middleware.RateLimitMiddleware(5, 10))
+
+	// Single stock data endpoints
+	stocks.GET("/data", sc.GetStockData)
+	stocks.GET("/latest/:code", sc.GetLatestStockData)
+
+	// Batch data endpoint
+	stocks.GET("/batch", sc.GetBatchStockData)
+
+	// Protected stock management endpoints
+	stockAdmin := stocks.Group("/admin")
+	stockAdmin.Use(middleware.JWTAuthMiddleware())
+	stockAdmin.Use(middleware.RequireRole("admin", "analyst"))
 	{
-		// Single stock data endpoints
-		stocks.GET("/data", sc.GetStockData)
-		stocks.GET("/latest/:code", sc.GetLatestStockData)
-		
-		// Batch data endpoint
-		stocks.GET("/batch", sc.GetBatchStockData)
-		
-		// Cache management endpoints
-		stocks.GET("/cache/stats", sc.GetCacheStats)
-		stocks.POST("/cache/clear", sc.ClearCache)
+		stockAdmin.POST("/cache/clear", sc.ClearCache)
+		stockAdmin.GET("/cache/stats", sc.GetCacheStats)
 	}
 }

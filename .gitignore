@@ -40,4 +40,4 @@ __debug_bin
 /debug
 
 # Environment variables
-.env
+# .env
