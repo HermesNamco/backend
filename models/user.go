@@ -1,7 +1,7 @@
 package models
 
 import (
-	"database/sql"
+	//"database/sql"
 	"errors"
 	"time"
 
@@ -70,18 +70,18 @@ func (u *User) HashPassword() error {
 	if u.Password == "" {
 		return errors.New("password cannot be empty")
 	}
-	
+
 	// In production code, replace this with proper password hashing:
 	// hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
 	// if err != nil {
 	//     return err
 	// }
 	// u.Password = string(hashedPassword)
-	
+
 	// This is just a placeholder and NOT secure!
 	// Just to demonstrate the concept
 	u.Password = "hashed_" + u.Password
-	
+
 	return nil
 }
 

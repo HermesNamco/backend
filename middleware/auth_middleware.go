@@ -3,7 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
-	"net/http"
+	//"net/http"
 	"strings"
 	"time"
 
@@ -48,7 +48,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		c.Set("userName", claims.Username)
 		c.Set("userRole", claims.Role)
 		c.Set("userClaims", claims)
-		
+
 		c.Next()
 	}
 }
@@ -76,7 +76,7 @@ func validateToken(tokenString string) (*JWTClaims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		
+
 		// Return the secret key for validation
 		return []byte(config.Auth.JWTSecret), nil
 	})
@@ -137,7 +137,7 @@ func GenerateToken(user *models.User) (string, error) {
 
 	// Set expiration time
 	expirationTime := time.Now().Add(config.Auth.JWTExpiration)
-	
+
 	// Create claims with user data
 	claims := &JWTClaims{
 		UserID:   user.ID,
@@ -152,16 +152,16 @@ func GenerateToken(user *models.User) (string, error) {
 			Subject:   user.ID,
 		},
 	}
-	
+
 	// Create the token with the claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	
+
 	// Sign the token with the secret key
 	tokenString, err := token.SignedString([]byte(config.Auth.JWTSecret))
 	if err != nil {
 		return "", err
 	}
-	
+
 	return tokenString, nil
 }
 
@@ -171,10 +171,10 @@ func GetCurrentUser(c *gin.Context) (string, bool) {
 	if !exists {
 		return "", false
 	}
-	
+
 	if id, ok := userID.(string); ok {
 		return id, true
 	}
-	
+
 	return "", false
 }

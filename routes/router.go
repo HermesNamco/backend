@@ -2,11 +2,11 @@ package routes
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"backend/controllers"
-	"backend/middleware"
+	"github.com/gin-gonic/gin"
 )
 
 // SetupRouter initializes the gin router with all application routes
@@ -16,7 +16,7 @@ func SetupRouter() *gin.Engine {
 
 	// Setup global middleware
 	router.Use(corsMiddleware())
-	
+
 	// Handle 404 not found
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -79,7 +79,7 @@ func SetupRouter() *gin.Engine {
 					Title   string `json:"title" binding:"required"`
 					Content string `json:"content" binding:"required"`
 				}
-				
+
 				if err := c.ShouldBindJSON(&report); err != nil {
 					c.JSON(http.StatusBadRequest, gin.H{
 						"status":  "error",
@@ -88,7 +88,7 @@ func SetupRouter() *gin.Engine {
 					})
 					return
 				}
-				
+
 				c.JSON(http.StatusCreated, gin.H{
 					"status": "success",
 					"data": gin.H{
@@ -109,12 +109,12 @@ func corsMiddleware() gin.HandlerFunc {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
-		
+
 		c.Next()
 	}
 }
@@ -124,30 +124,30 @@ func loggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Start timer
 		startTime := time.Now()
-		
+
 		// Process request
 		c.Next()
-		
+
 		// Calculate request time
 		endTime := time.Now()
 		latency := endTime.Sub(startTime)
-		
+
 		// Log request details
 		statusCode := c.Writer.Status()
 		method := c.Request.Method
 		path := c.Request.URL.Path
-		
+
 		// You can integrate with a proper logging system here
 		if statusCode >= 500 {
 			// Log error level
 			gin.DefaultErrorWriter.Write([]byte(
-				"ERROR | " + method + " | " + path + " | " + 
-				statusCode + " | " + latency.String() + "\n"))
+				"ERROR | " + method + " | " + path + " | " +
+					strconv.Itoa(statusCode) + " | " + latency.String() + "\n"))
 		} else {
 			// Log info level
 			gin.DefaultWriter.Write([]byte(
-				"INFO | " + method + " | " + path + " | " + 
-				statusCode + " | " + latency.String() + "\n"))
+				"INFO | " + method + " | " + path + " | " +
+					strconv.Itoa(statusCode) + " | " + latency.String() + "\n"))
 		}
 	}
 }
