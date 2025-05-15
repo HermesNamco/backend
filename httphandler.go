@@ -18,5 +18,4 @@ func reportHandler(c *gin.Context) {
 	if err := reporter.NewReporter().Send(req.text); err != nil {
 		log.Fatal(err)
 	}
-	return
 }
