@@ -74,8 +74,8 @@ func (s *BollingerBandsStrategy) DefaultParams() StrategyParams {
 	params["period"] = 20
 	params["stdDevMultiplier"] = 2.0
 	params["strategyType"] = "mean_reversion"
-	params["priceField"] = "close"         // e.g., close, open, high, low, typical ( (h+l+c)/3 )
-	params["riskPercent"] = 1.5            // Risk 1.5% of capital per trade
+	params["priceField"] = "close"        // e.g., close, open, high, low, typical ( (h+l+c)/3 )
+	params["riskPercent"] = 1.5           // Risk 1.5% of capital per trade
 	params["stopLossATRMultiplier"] = 1.5 // For ATR based stop-loss
 	return params
 }
@@ -129,9 +129,8 @@ func (s *BollingerBandsStrategy) GenerateSignals(ctx context.Context, stockData 
 					Strategy:  s.Name(),
 				}
 				generated = true
-			}
-			// Sell signal: Price touches or crosses above the upper band and then moves down
-			else if prevPrice >= upperBand[i-1] && currentPrice < upperBand[i] {
+			} else if prevPrice >= upperBand[i-1] && currentPrice < upperBand[i] {
+				// Sell signal: Price touches or crosses above the upper band and then moves down
 				signal = Signal{
 					Type:      SignalSell,
 					Strength:  s.calculateSignalStrength(currentPrice, middleBand[i], lowerBand[i], upperBand[i], false),
@@ -156,9 +155,8 @@ func (s *BollingerBandsStrategy) GenerateSignals(ctx context.Context, stockData 
 					Strategy:  s.Name(),
 				}
 				generated = true
-			}
-			// Sell signal: Price breaks out below the lower band
-			else if prevPrice >= lowerBand[i-1] && currentPrice < lowerBand[i] {
+			} else if prevPrice >= lowerBand[i-1] && currentPrice < lowerBand[i] {
+				// Sell signal: Price breaks out below the lower band
 				signal = Signal{
 					Type:      SignalSell,
 					Strength:  s.calculateSignalStrength(currentPrice, middleBand[i], lowerBand[i], upperBand[i], false),

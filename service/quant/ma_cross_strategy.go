@@ -1,13 +1,11 @@
 package quant
 
 import (
+	"backend/models"
 	"context"
 	"errors"
 	"fmt"
 	"math"
-	"time"
-
-	"backend/models"
 )
 
 // MACrossStrategy implements a Moving Average Crossover strategy
@@ -69,7 +67,7 @@ func (s *MACrossStrategy) Initialize(params StrategyParams) error {
 		}
 	}
 
-	s.Log("Initialized with parameters: fastPeriod=%d, slowPeriod=%d, maType=%s", 
+	s.Log("Initialized with parameters: fastPeriod=%d, slowPeriod=%d, maType=%s",
 		s.fastPeriod, s.slowPeriod, s.maType)
 
 	return nil
@@ -119,8 +117,8 @@ func (s *MACrossStrategy) GenerateSignals(ctx context.Context, stockData []model
 	signals := []Signal{}
 	for i := 1; i < len(sortedData); i++ {
 		// Skip data points where we don't have valid MAs yet
-		if i < s.slowPeriod || math.IsNaN(fastMA[i]) || math.IsNaN(slowMA[i]) || 
-		   math.IsNaN(fastMA[i-1]) || math.IsNaN(slowMA[i-1]) {
+		if i < s.slowPeriod || math.IsNaN(fastMA[i]) || math.IsNaN(slowMA[i]) ||
+			math.IsNaN(fastMA[i-1]) || math.IsNaN(slowMA[i-1]) {
 			continue
 		}
 
@@ -137,9 +135,8 @@ func (s *MACrossStrategy) GenerateSignals(ctx context.Context, stockData []model
 				Strategy:  s.Name(),
 			}
 			signals = append(signals, signal)
-		}
-		// Sell signal: Fast MA crosses below Slow MA
-		else if fastMA[i] < slowMA[i] && fastMA[i-1] >= slowMA[i-1] {
+		} else if fastMA[i] < slowMA[i] && fastMA[i-1] >= slowMA[i-1] {
+			// Sell signal: Fast MA crosses below Slow MA
 			signal := Signal{
 				Type:      SignalSell,
 				Strength:  s.calculateSignalStrength(fastMA[i], slowMA[i], false),
@@ -161,7 +158,7 @@ func (s *MACrossStrategy) GenerateSignals(ctx context.Context, stockData []model
 // For sell signals, larger negative differences mean stronger signals
 func (s *MACrossStrategy) calculateSignalStrength(fast, slow float64, isBuy bool) float64 {
 	diff := fast - slow
-	absPercentage := math.Abs(diff / slow) * 100
+	absPercentage := math.Abs(diff/slow) * 100
 
 	// Cap strength at 1.0
 	if absPercentage > 5 {
@@ -169,7 +166,7 @@ func (s *MACrossStrategy) calculateSignalStrength(fast, slow float64, isBuy bool
 	}
 
 	// Scale strength between 0.2 and 1.0 based on percentage difference
-	strength := 0.2 + (absPercentage / 5.0) * 0.8
+	strength := 0.2 + (absPercentage/5.0)*0.8
 	if strength > 1.0 {
 		strength = 1.0
 	}
@@ -455,31 +452,31 @@ func (s *MACrossStrategy) CalculateWMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return nil
 	}
-	
+
 	result := make([]float64, len(prices))
-	
+
 	// First (period-1) elements have no WMA
 	for i := 0; i < period-1; i++ {
 		result[i] = math.NaN()
 	}
-	
+
 	// Calculate weights sum: 1+2+...+period = period*(period+1)/2
 	weightsSum := period * (period + 1) / 2
-	
+
 	// Calculate WMA for the rest of the data
 	for i := period - 1; i < len(prices); i++ {
 		sum := 0.0
 		weight := 1.0
-		
+
 		// Calculate weighted sum
 		for j := i - period + 1; j <= i; j++ {
 			sum += prices[j] * weight
 			weight += 1.0
 		}
-		
+
 		result[i] = sum / float64(weightsSum)
 	}
-	
+
 	return result
 }
 

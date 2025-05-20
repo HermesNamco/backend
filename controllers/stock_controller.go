@@ -51,15 +51,15 @@ func NewStockController() *StockController {
 	config := configs.GetConfig()
 
 	// Create and initialize the stock data provider
-	providerType := stock.ProviderType(config.Stock.ProviderType)
+	providerType := configs.ProviderType(config.Stock.ProviderType)
 	if providerType == "" {
-		providerType = stock.DefaultProvider
+		providerType = configs.DefaultProvider
 	}
 
 	provider, err := stock.NewStockDataProvider(providerType)
 	if err != nil {
 		// Fall back to default provider if specified one fails
-		provider, _ = stock.NewStockDataProvider(stock.DefaultProvider)
+		provider, _ = stock.NewStockDataProvider(configs.DefaultProvider)
 	}
 
 	// Initialize the provider with configuration

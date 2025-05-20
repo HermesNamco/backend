@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"backend/models"
-	// Assuming stockdataProvider is from the higher level stock package, 
+	stockApi "backend/service/stock"
+	// Assuming stockdataProvider is from the higher level stock package,
 	// but for strategy execution, we might need a quant-specific data provider
 	// that aligns with quant.DataProvider interface.
-	stockApi "backend/service/stock/api"
 )
 
 // ExecutionMode defines the operational mode of the StrategyExecutor.
+//
 //go:generate stringer -type=ExecutionMode
 type ExecutionMode int
 
@@ -30,6 +31,7 @@ const (
 )
 
 // OrderType defines the type of order.
+//
 //go:generate stringer -type=OrderType
 type OrderType string
 
@@ -39,6 +41,7 @@ const (
 )
 
 // OrderStatus defines the status of an order.
+//
 //go:generate stringer -type=OrderStatus
 type OrderStatus string
 
@@ -53,19 +56,20 @@ const (
 
 // Order represents a trading order to be placed with a broker or simulated.
 type Order struct {
-	ID        string      `json:"id"`         // Unique order identifier, can be assigned by executor or broker
+	ID        string      `json:"id"`        // Unique order identifier, can be assigned by executor or broker
 	StockCode string      `json:"stockCode"` // Stock symbol
 	Type      OrderType   `json:"type"`      // BUY or SELL
-	Quantity  float64     `json:"quantity"`   // Number of shares/contracts
-	Price     float64     `json:"price"`      // Limit price (0 for market order)
-	Timestamp time.Time   `json:"timestamp"`  // Time the order was created/placed
+	Quantity  float64     `json:"quantity"`  // Number of shares/contracts
+	Price     float64     `json:"price"`     // Limit price (0 for market order)
+	Timestamp time.Time   `json:"timestamp"` // Time the order was created/placed
 	Status    OrderStatus `json:"status"`    // Current status of the order
-	Strategy  string      `json:"strategy"`   // Strategy that generated this order
+	Strategy  string      `json:"strategy"`  // Strategy that generated this order
 	Notes     string      `json:"notes,omitempty"`
 }
 
 // OrderExecutor defines an interface for placing, cancelling, and checking orders.
-// This can be implemented for live brokers or paper trading simulators.	ype OrderExecutor interface {
+// This can be implemented for live brokers or paper trading simulators.
+type OrderExecutor interface {
 	// PlaceOrder submits an order and returns an order ID or an error.
 	PlaceOrder(ctx context.Context, order Order) (string, error)
 	// CancelOrder attempts to cancel an existing order.
@@ -76,7 +80,8 @@ type Order struct {
 	GetBrokerName() string
 }
 
-// PositionManager defines an interface for managing trading positions and portfolio state.	ype PositionManager interface {
+// PositionManager defines an interface for managing trading positions and portfolio state.
+type PositionManager interface {
 	// GetPosition retrieves the current position for a given stock code.
 	GetPosition(ctx context.Context, stockCode string) (Position, bool)
 	// UpdatePosition updates or creates a position for a stock code.
@@ -92,7 +97,8 @@ type Order struct {
 	RecordTrade(ctx context.Context, trade Trade) error
 }
 
-// Notifier defines an interface for sending notifications about trading events.	ype Notifier interface {
+// Notifier defines an interface for sending notifications about trading events.
+type Notifier interface {
 	NotifySignal(ctx context.Context, signal Signal) error
 	NotifyOrder(ctx context.Context, order Order) error
 	NotifyTrade(ctx context.Context, trade Trade) error
@@ -100,16 +106,17 @@ type Order struct {
 	NotifyMessage(ctx context.Context, level string, message string) error // level: INFO, WARN, ERROR
 }
 
-// ExecutorConfig holds configuration for the StrategyExecutor.	ype ExecutorConfig struct {
-	ExecutionMode         ExecutionMode     `json:"executionMode"`
-	SubscribedStockCodes  []string          `json:"subscribedStockCodes"`
-	DataTimeframe         DataTimeframe     `json:"dataTimeframe"`
-	SignalStrengthFilter  float64           `json:"signalStrengthFilter"` // Minimum signal strength to act upon (0.0-1.0)
-	DefaultRiskPerTrade   float64           `json:"defaultRiskPerTrade"`  // Default percentage of capital to risk per trade (e.g., 1.0 for 1%)
-	MaxConcurrentStrategies int             `json:"maxConcurrentStrategies"`
-	LogFile               string            `json:"logFile,omitempty"`
-	PaperTradingConfig    PaperTradingConfig `json:"paperTradingConfig,omitempty"`
-	LiveTradingConfig     LiveTradingConfig  `json:"liveTradingConfig,omitempty"`
+// ExecutorConfig holds configuration for the StrategyExecutor.
+type ExecutorConfig struct {
+	ExecutionMode           ExecutionMode      `json:"executionMode"`
+	SubscribedStockCodes    []string           `json:"subscribedStockCodes"`
+	DataTimeframe           DataTimeframe      `json:"dataTimeframe"`
+	SignalStrengthFilter    float64            `json:"signalStrengthFilter"` // Minimum signal strength to act upon (0.0-1.0)
+	DefaultRiskPerTrade     float64            `json:"defaultRiskPerTrade"`  // Default percentage of capital to risk per trade (e.g., 1.0 for 1%)
+	MaxConcurrentStrategies int                `json:"maxConcurrentStrategies"`
+	LogFile                 string             `json:"logFile,omitempty"`
+	PaperTradingConfig      PaperTradingConfig `json:"paperTradingConfig,omitempty"`
+	LiveTradingConfig       LiveTradingConfig  `json:"liveTradingConfig,omitempty"`
 }
 
 // PaperTradingConfig specific to paper trading mode
@@ -127,9 +134,10 @@ type LiveTradingConfig struct {
 	CommissionRate  float64 `json:"commissionRate"`
 }
 
-// StrategyExecutor runs trading strategies, processes signals, and manages orders.	ype StrategyExecutor struct {
+// StrategyExecutor runs trading strategies, processes signals, and manages orders.
+type StrategyExecutor struct {
 	config          ExecutorConfig
-	dataProvider    DataProvider      // For market data subscription
+	dataProvider    DataProvider               // For market data subscription
 	stockProvider   stockApi.StockDataProvider // For fetching historical data for ATR etc.
 	orderExecutor   OrderExecutor
 	positionManager PositionManager
@@ -137,9 +145,9 @@ type LiveTradingConfig struct {
 	strategies      map[string]Strategy // Map of strategy name to strategy instance
 
 	// Real-time processing state
-	activeSubscriptions map[string]Subscription // map[stockCode]Subscription
+	activeSubscriptions map[string]Subscription      // map[stockCode]Subscription
 	dataChannels        map[string]chan models.Stock // map[stockCode]chan models.Stock
-	lastProcessedSignal map[string]time.Time      // map[strategyName_stockCode]time.Time for debouncing
+	lastProcessedSignal map[string]time.Time         // map[strategyName_stockCode]time.Time for debouncing
 	mu                  sync.RWMutex
 	logger              *log.Logger
 	ctx                 context.Context
@@ -319,12 +327,12 @@ func (e *StrategyExecutor) processIncomingData(stockCode string, data models.Sto
 			// Let's assume for now that strategies manage their own state or the executor can fetch history.
 			// Fetching minimal history for strategy to operate on the new tick:
 			// This is a simplified approach; a real system would have more sophisticated data window management.
-			
+
 			// Fetch historical data for context if needed by the strategy. Many strategies need more than one point.
 			// The amount of history needed depends on the strategy's longest lookback period.
 			// This could be optimized by caching or having strategies manage their data windows.
 			const historyLookbackBars = 100 // Example, should be configurable or strategy-dependent
-			
+
 			historicalData, err := e.fetchMinimalHistory(e.ctx, stockData.Code, stockData.Timestamp, historyLookbackBars)
 			if err != nil {
 				e.logger.Printf("Error fetching history for %s for strategy %s: %v", stockData.Code, s.Name(), err)
@@ -368,7 +376,7 @@ func (e *StrategyExecutor) fetchMinimalHistory(ctx context.Context, stockCode st
 	// Estimate start time based on 1-minute interval for 'bars'. This is a rough estimate.
 	// A more robust solution would consider market open hours and actual trading days.
 	startTime := currentTimestamp.Add(-time.Duration(bars*2) * time.Minute) // *2 for safety margin
-	 endTime := currentTimestamp.Add(-1 * time.Minute) // Up to the bar before the current one
+	endTime := currentTimestamp.Add(-1 * time.Minute)                       // Up to the bar before the current one
 
 	if startTime.After(endTime) { // If currentTimestamp is too early in the session
 		return []models.Stock{}, nil
@@ -463,7 +471,7 @@ func (e *StrategyExecutor) Stop() {
 		}
 		delete(e.activeSubscriptions, stockCode)
 		if e.dataChannels[stockCode] != nil {
-		    close(e.dataChannels[stockCode])
+			close(e.dataChannels[stockCode])
 		}
 	}
 	e.mu.Unlock()
@@ -589,15 +597,15 @@ func (e *StrategyExecutor) calculatePositionSizeAndRisk(signal Signal) (float64,
 	// Strategies should ideally provide a suggested stop-loss point or ATR value.
 	// For now, a simple percentage-based stop-loss from signal price.
 	stopLossDistance := signal.Price * 0.02 // Example: 2% stop-loss. This should be more sophisticated.
-	if signal.Type == SignalSell { // For short selling, stop loss is above entry.
+	if signal.Type == SignalSell {          // For short selling, stop loss is above entry.
 		// This example primarily handles long positions for simplicity.
 		// For short, this would be (stopPrice - entryPrice).
 		// If this is closing a long position, size is determined by existing position.
-		 existingPos, found := e.positionManager.GetPosition(e.ctx, signal.StockCode)
-		 if found && signal.Type == SignalSell { // Closing an existing long position
-		 	return existingPos.Quantity, nil
-		 }
-		 // If it's initiating a short, more logic needed. For now, assume closing long or new long.
+		existingPos, found := e.positionManager.GetPosition(e.ctx, signal.StockCode)
+		if found && signal.Type == SignalSell { // Closing an existing long position
+			return existingPos.Quantity, nil
+		}
+		// If it's initiating a short, more logic needed. For now, assume closing long or new long.
 	}
 
 	if stopLossDistance <= 0 {
@@ -651,8 +659,8 @@ func (e *StrategyExecutor) simulateOrderFill(order Order) {
 
 	trade := Trade{
 		StockCode:     order.StockCode,
-		EntryTime:     now, // For simplicity, fill time is now. Could be linked to order time.
-		EntryPrice:    fillPrice, // This is the entry/exit price of THIS trade leg.
+		EntryTime:     now,         // For simplicity, fill time is now. Could be linked to order time.
+		EntryPrice:    fillPrice,   // This is the entry/exit price of THIS trade leg.
 		ExitTime:      time.Time{}, // Not set for single leg fill
 		ExitPrice:     0,
 		Quantity:      order.Quantity,
@@ -692,13 +700,13 @@ func (e *StrategyExecutor) simulateOrderFill(order Order) {
 	if e.notifier != nil {
 		// Create a 'Trade' record representing this fill for notification if needed.
 		// The 'trade' variable here can be used for that, though its P&L is 0.
-		e.notifier.NotifyTrade(e.ctx, trade) 
+		e.notifier.NotifyTrade(e.ctx, trade)
 	}
 
 	order.Status = OrderStatusFilled
 	order.Price = fillPrice // Update order price to actual fill price
 	if e.notifier != nil {
-	    e.notifier.NotifyOrder(e.ctx, order) // Notify updated order status
+		e.notifier.NotifyOrder(e.ctx, order) // Notify updated order status
 	}
 
 	e.logger.Printf("Simulated fill processed for %s. Fill Price: %.2f, Commission: %.2f", order.ID, fillPrice, commission)

@@ -1,14 +1,11 @@
 package quant
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"log"
 	"math"
 	"sort"
 	"sync"
-	"time"
 
 	"backend/models"
 )
@@ -106,7 +103,7 @@ func (b *BaseStrategy) ValidateData(data []models.Stock, minLength int) error {
 func (b *BaseStrategy) GetParam(key string, defaultValue interface{}) interface{} {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	
+
 	if value, exists := b.params[key]; exists {
 		return value
 	}
@@ -119,12 +116,12 @@ func (b *BaseStrategy) GetIntParam(key string, defaultValue int) int {
 	if intValue, ok := value.(int); ok {
 		return intValue
 	}
-	
+
 	// Try to convert from float64 (JSON unmarshaling often produces float64)
 	if floatValue, ok := value.(float64); ok {
 		return int(floatValue)
 	}
-	
+
 	return defaultValue
 }
 
@@ -179,27 +176,27 @@ func (b *BaseStrategy) CalculateSMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return nil
 	}
-	
+
 	result := make([]float64, len(prices))
-	
+
 	// First (period-1) elements have no SMA
 	for i := 0; i < period-1; i++ {
 		result[i] = math.NaN()
 	}
-	
+
 	// Calculate SMA for the rest
 	sum := 0.0
 	for i := 0; i < period; i++ {
 		sum += prices[i]
 	}
 	result[period-1] = sum / float64(period)
-	
+
 	// Sliding window for the rest of the data
 	for i := period; i < len(prices); i++ {
 		sum = sum - prices[i-period] + prices[i]
 		result[i] = sum / float64(period)
 	}
-	
+
 	return result
 }
 
@@ -208,29 +205,29 @@ func (b *BaseStrategy) CalculateEMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return nil
 	}
-	
+
 	result := make([]float64, len(prices))
-	
+
 	// First (period-1) elements have no EMA
 	for i := 0; i < period-1; i++ {
 		result[i] = math.NaN()
 	}
-	
+
 	// Initialize EMA with SMA for the first value
 	sum := 0.0
 	for i := 0; i < period; i++ {
 		sum += prices[i]
 	}
 	result[period-1] = sum / float64(period)
-	
+
 	// Calculate multiplier
 	multiplier := 2.0 / float64(period+1)
-	
+
 	// Calculate EMA for the rest
 	for i := period; i < len(prices); i++ {
 		result[i] = (prices[i]-result[i-1])*multiplier + result[i-1]
 	}
-	
+
 	return result
 }
 
@@ -239,11 +236,11 @@ func (b *BaseStrategy) CalculateRSI(prices []float64, period int) []float64 {
 	if len(prices) < period+1 {
 		return nil
 	}
-	
+
 	result := make([]float64, len(prices))
 	gains := make([]float64, len(prices))
 	losses := make([]float64, len(prices))
-	
+
 	// Calculate price changes
 	for i := 1; i < len(prices); i++ {
 		change := prices[i] - prices[i-1]
@@ -255,12 +252,12 @@ func (b *BaseStrategy) CalculateRSI(prices []float64, period int) []float64 {
 			losses[i] = -change
 		}
 	}
-	
+
 	// First period elements have no RSI
 	for i := 0; i < period; i++ {
 		result[i] = math.NaN()
 	}
-	
+
 	// Calculate first Average Gain and Average Loss
 	var avgGain, avgLoss float64
 	for i := 1; i <= period; i++ {
@@ -269,7 +266,7 @@ func (b *BaseStrategy) CalculateRSI(prices []float64, period int) []float64 {
 	}
 	avgGain /= float64(period)
 	avgLoss /= float64(period)
-	
+
 	// Calculate first RSI
 	if avgLoss == 0 {
 		result[period] = 100
@@ -277,13 +274,13 @@ func (b *BaseStrategy) CalculateRSI(prices []float64, period int) []float64 {
 		rs := avgGain / avgLoss
 		result[period] = 100 - (100 / (1 + rs))
 	}
-	
+
 	// Calculate RSI for the rest of the data
 	for i := period + 1; i < len(prices); i++ {
 		// Use smoothed averages
 		avgGain = ((avgGain * float64(period-1)) + gains[i]) / float64(period)
 		avgLoss = ((avgLoss * float64(period-1)) + losses[i]) / float64(period)
-		
+
 		if avgLoss == 0 {
 			result[i] = 100
 		} else {
@@ -291,7 +288,7 @@ func (b *BaseStrategy) CalculateRSI(prices []float64, period int) []float64 {
 			result[i] = 100 - (100 / (1 + rs))
 		}
 	}
-	
+
 	return result
 }
 
@@ -300,19 +297,19 @@ func (b *BaseStrategy) CalculateBollingerBands(prices []float64, period int, std
 	if len(prices) < period {
 		return nil, nil, nil
 	}
-	
+
 	// Calculate SMA
 	middle := b.CalculateSMA(prices, period)
-	
+
 	upper := make([]float64, len(prices))
 	lower := make([]float64, len(prices))
-	
+
 	// First (period-1) elements have no bands
 	for i := 0; i < period-1; i++ {
 		upper[i] = math.NaN()
 		lower[i] = math.NaN()
 	}
-	
+
 	// Calculate bands for the rest
 	for i := period - 1; i < len(prices); i++ {
 		// Calculate standard deviation
@@ -322,11 +319,11 @@ func (b *BaseStrategy) CalculateBollingerBands(prices []float64, period int, std
 			sum += diff * diff
 		}
 		stdDev := math.Sqrt(sum / float64(period))
-		
+
 		upper[i] = middle[i] + stdDevMultiplier*stdDev
 		lower[i] = middle[i] - stdDevMultiplier*stdDev
 	}
-	
+
 	return upper, middle, lower
 }
 
@@ -335,11 +332,11 @@ func (b *BaseStrategy) CalculateMACD(prices []float64, fastPeriod, slowPeriod, s
 	if len(prices) < slowPeriod {
 		return nil, nil, nil
 	}
-	
+
 	// Calculate fast and slow EMAs
 	fastEMA := b.CalculateEMA(prices, fastPeriod)
 	slowEMA := b.CalculateEMA(prices, slowPeriod)
-	
+
 	// Calculate MACD line
 	macdLine := make([]float64, len(prices))
 	for i := 0; i < len(prices); i++ {
@@ -349,10 +346,10 @@ func (b *BaseStrategy) CalculateMACD(prices []float64, fastPeriod, slowPeriod, s
 			macdLine[i] = fastEMA[i] - slowEMA[i]
 		}
 	}
-	
+
 	// Calculate signal line (EMA of MACD line)
 	signalLine := b.CalculateEMA(macdLine, signalPeriod)
-	
+
 	// Calculate histogram
 	histogram := make([]float64, len(prices))
 	for i := 0; i < len(prices); i++ {
@@ -362,7 +359,7 @@ func (b *BaseStrategy) CalculateMACD(prices []float64, fastPeriod, slowPeriod, s
 			histogram[i] = macdLine[i] - signalLine[i]
 		}
 	}
-	
+
 	return macdLine, signalLine, histogram
 }
 
@@ -393,7 +390,7 @@ func (b *BaseStrategy) NormalizeData(data []float64) []float64 {
 	if len(data) == 0 {
 		return nil
 	}
-	
+
 	// Find min and max
 	min, max := data[0], data[0]
 	for _, value := range data {
@@ -404,7 +401,7 @@ func (b *BaseStrategy) NormalizeData(data []float64) []float64 {
 			max = value
 		}
 	}
-	
+
 	// Handle case where all values are the same
 	if min == max {
 		normalized := make([]float64, len(data))
@@ -413,14 +410,14 @@ func (b *BaseStrategy) NormalizeData(data []float64) []float64 {
 		}
 		return normalized
 	}
-	
+
 	// Normalize
 	normalized := make([]float64, len(data))
 	scale := max - min
 	for i, value := range data {
 		normalized[i] = (value - min) / scale
 	}
-	
+
 	return normalized
 }
 
@@ -429,14 +426,14 @@ func (b *BaseStrategy) ZScoreNormalize(data []float64) []float64 {
 	if len(data) == 0 {
 		return nil
 	}
-	
+
 	// Calculate mean
 	sum := 0.0
 	for _, value := range data {
 		sum += value
 	}
 	mean := sum / float64(len(data))
-	
+
 	// Calculate standard deviation
 	sumSquaredDiff := 0.0
 	for _, value := range data {
@@ -444,7 +441,7 @@ func (b *BaseStrategy) ZScoreNormalize(data []float64) []float64 {
 		sumSquaredDiff += diff * diff
 	}
 	stdDev := math.Sqrt(sumSquaredDiff / float64(len(data)))
-	
+
 	// Handle case where standard deviation is zero
 	if stdDev == 0 {
 		normalized := make([]float64, len(data))
@@ -453,13 +450,13 @@ func (b *BaseStrategy) ZScoreNormalize(data []float64) []float64 {
 		}
 		return normalized
 	}
-	
+
 	// Normalize
 	normalized := make([]float64, len(data))
 	for i, value := range data {
 		normalized[i] = (value - mean) / stdDev
 	}
-	
+
 	return normalized
 }
 
@@ -470,12 +467,12 @@ func (b *BaseStrategy) CalculatePositionSize(capital float64, riskPercent float6
 	if entryPrice <= stopLoss { // For long positions
 		return 0 // Invalid parameters
 	}
-	
+
 	riskPerShare := entryPrice - stopLoss
 	if riskPerShare <= 0 {
 		return 0 // Invalid risk parameters
 	}
-	
+
 	maxRiskAmount := capital * (riskPercent / 100.0)
 	return maxRiskAmount / riskPerShare
 }
@@ -494,21 +491,21 @@ func (b *BaseStrategy) CalculateATR(stockData []models.Stock, period int) []floa
 	if len(stockData) < period+1 {
 		return nil
 	}
-	
+
 	trueRanges := make([]float64, len(stockData))
-	
+
 	// First element has no previous close
 	trueRanges[0] = stockData[0].High - stockData[0].Low
-	
+
 	// Calculate true ranges
 	for i := 1; i < len(stockData); i++ {
 		tr1 := stockData[i].High - stockData[i].Low
 		tr2 := math.Abs(stockData[i].High - stockData[i-1].Close)
 		tr3 := math.Abs(stockData[i].Low - stockData[i-1].Close)
-		
+
 		trueRanges[i] = math.Max(tr1, math.Max(tr2, tr3))
 	}
-	
+
 	// Calculate ATR using simple moving average
 	return b.CalculateSMA(trueRanges, period)
 }
@@ -520,31 +517,31 @@ func (b *BaseStrategy) CalculateSharpeRatio(returns []float64, riskFreeRate floa
 	if len(returns) < 2 {
 		return 0
 	}
-	
+
 	// Calculate excess returns
 	excessReturns := make([]float64, len(returns))
 	for i, ret := range returns {
 		excessReturns[i] = ret - riskFreeRate
 	}
-	
+
 	// Calculate mean and standard deviation
 	sum := 0.0
 	for _, er := range excessReturns {
 		sum += er
 	}
 	mean := sum / float64(len(excessReturns))
-	
+
 	sumSquaredDiff := 0.0
 	for _, er := range excessReturns {
 		diff := er - mean
 		sumSquaredDiff += diff * diff
 	}
 	stdDev := math.Sqrt(sumSquaredDiff / float64(len(excessReturns)))
-	
+
 	if stdDev == 0 {
 		return 0
 	}
-	
+
 	return mean / stdDev
 }
 
@@ -553,21 +550,21 @@ func (b *BaseStrategy) CalculateMaxDrawdown(equity []float64) float64 {
 	if len(equity) < 2 {
 		return 0
 	}
-	
+
 	maxDrawdown := 0.0
 	peak := equity[0]
-	
+
 	for _, value := range equity {
 		if value > peak {
 			peak = value
 		}
-		
+
 		drawdown := (peak - value) / peak
 		if drawdown > maxDrawdown {
 			maxDrawdown = drawdown
 		}
 	}
-	
+
 	return maxDrawdown * 100 // Convert to percentage
 }
 
@@ -576,12 +573,12 @@ func (b *BaseStrategy) CalculateReturns(equity []float64) []float64 {
 	if len(equity) < 2 {
 		return nil
 	}
-	
+
 	returns := make([]float64, len(equity)-1)
 	for i := 1; i < len(equity); i++ {
 		returns[i-1] = (equity[i] - equity[i-1]) / equity[i-1]
 	}
-	
+
 	return returns
 }
 
@@ -589,10 +586,10 @@ func (b *BaseStrategy) CalculateReturns(equity []float64) []float64 {
 func (b *BaseStrategy) SortStocksByTime(stockData []models.Stock) []models.Stock {
 	sorted := make([]models.Stock, len(stockData))
 	copy(sorted, stockData)
-	
+
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Timestamp.Before(sorted[j].Timestamp)
 	})
-	
+
 	return sorted
 }

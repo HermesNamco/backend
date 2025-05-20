@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"backend/configs"
 	"backend/models"
 )
 
@@ -27,24 +28,10 @@ type StockDataProvider interface {
 	Initialize(config ProviderConfig) error
 }
 
-// ProviderType defines the available stock data provider types
-type ProviderType string
-
-const (
-	// TuShareProvider represents the TuShare API provider
-	TuShareProvider ProviderType = "tushare"
-
-	// TonghuashunProvider represents the Tonghuashun API provider
-	TonghuashunProvider ProviderType = "tonghuashun"
-
-	// DefaultProvider defines the default provider to use
-	DefaultProvider = TuShareProvider
-)
-
 // ProviderConfig holds configuration for stock data providers
 type ProviderConfig struct {
 	// Type specifies which provider implementation to use
-	Type ProviderType `json:"type"`
+	Type configs.ProviderType `json:"type"`
 
 	// APIKey is the authentication key for the API
 	APIKey string `json:"apiKey"`
@@ -151,11 +138,11 @@ func (e *StockAPIError) Unwrap() error {
 }
 
 // NewStockDataProvider creates a new stock data provider based on the specified type
-func NewStockDataProvider(providerType ProviderType) (StockDataProvider, error) {
+func NewStockDataProvider(providerType configs.ProviderType) (StockDataProvider, error) {
 	switch providerType {
-	case TuShareProvider:
+	case configs.TuShareProvider:
 		return &tuShareProvider{}, nil
-	case TonghuashunProvider:
+	case configs.TonghuashunProvider:
 		return &tonghuashunProvider{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)

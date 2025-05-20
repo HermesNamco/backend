@@ -76,7 +76,7 @@ func (pm *InMemoryPositionManager) UpdatePosition(ctx context.Context, tradeFill
 	defer pm.mu.Unlock()
 
 	stockCode := tradeFilled.StockCode
-	fillPrice := tradeFilled.EntryPrice    // For BUY, this is entry. For SELL, this is effectively exit of existing.
+	fillPrice := tradeFilled.EntryPrice // For BUY, this is entry. For SELL, this is effectively exit of existing.
 	fillQuantity := tradeFilled.Quantity
 	fillTime := tradeFilled.EntryTime // Assuming EntryTime on the Trade struct is the fill time
 
@@ -102,7 +102,7 @@ func (pm *InMemoryPositionManager) UpdatePosition(ctx context.Context, tradeFill
 			currentPos.EntryPrice = newAvgEntryPrice
 			currentPos.Quantity = newTotalQuantity
 			currentPos.CurrentPrice = fillPrice // Update current price to the latest fill
-			currentPos.EntryTime = fillTime    // Could average time, or use latest entry time
+			currentPos.EntryTime = fillTime     // Could average time, or use latest entry time
 			pm.logger.Printf("Averaged into position %s: New Qty %.2f, AvgPrice %.2f", stockCode, newTotalQuantity, newAvgEntryPrice)
 		} else { // New position
 			currentPos = Position{
@@ -137,7 +137,7 @@ func (pm *InMemoryPositionManager) UpdatePosition(ctx context.Context, tradeFill
 			ExitTime:      fillTime,
 			ExitPrice:     fillPrice,
 			Quantity:      fillQuantity,
-			Direction:     currentPos.Strategy, // This should be "LONG" or "SHORT" from position
+			Direction:     currentPos.Strategy,     // This should be "LONG" or "SHORT" from position
 			ProfitLoss:    realizedPL - commission, // Net P&L after commission
 			HoldingPeriod: fillTime.Sub(currentPos.EntryTime),
 			ExitReason:    "Signal", // Or from tradeFilled.Notes
@@ -329,7 +329,7 @@ func (pm *InMemoryPositionManager) CalculatePositionQuantity(ctx context.Context
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
-	cashBalance, _ := pm.GetCashBalance(ctx) // Error ignored for simplicity, consider handling
+	cashBalance, _ := pm.GetCashBalance(ctx)                                                  // Error ignored for simplicity, consider handling
 	portfolioValue, _ := pm.GetTotalPortfolioValue(ctx, map[string]float64{stockCode: price}) // Approx portfolio value
 
 	var quantity float64
@@ -525,82 +525,81 @@ func (pm *InMemoryPositionManager) GetCompletedTrades(ctx context.Context) ([]Tr
 
 // SetLogger allows setting a custom logger.
 func (pm *InMemoryPositionManager) SetLogger(logger *log.Logger) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
-    if logger != nil {
-        pm.logger = logger
-    }
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if logger != nil {
+		pm.logger = logger
+	}
 }
 
 // ResetState clears all positions, trades, and resets cash to initial capital.
 // Useful for backtesting multiple runs or scenarios.
 func (pm *InMemoryPositionManager) ResetState(ctx context.Context, newInitialCapital float64) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-    pm.positions = make(map[string]Position)
-    pm.completedTrades = make([]Trade, 0)
-    pm.initialCapital = newInitialCapital
-    pm.cash = newInitialCapital
-    pm.nextOrderID = 1 // Reset order ID counter if it's used internally
-    pm.logger.Printf("PositionManager state reset. Initial capital: %.2f", newInitialCapital)
+	pm.positions = make(map[string]Position)
+	pm.completedTrades = make([]Trade, 0)
+	pm.initialCapital = newInitialCapital
+	pm.cash = newInitialCapital
+	pm.nextOrderID = 1 // Reset order ID counter if it's used internally
+	pm.logger.Printf("PositionManager state reset. Initial capital: %.2f", newInitialCapital)
 }
 
 // CheckPortfolioRisk evaluates if current open positions exceed max portfolio risk.
 // This is a simplified check; real risk management is more nuanced.
 func (pm *InMemoryPositionManager) CheckPortfolioRisk(ctx context.Context, marketPrices map[string]float64) (bool, float64, error) {
-    pm.mu.RLock()
-    defer pm.mu.RUnlock()
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
 
-    if pm.config.MaxPortfolioRisk <= 0 { // Risk check disabled
-        return false, 0, nil
-    }
+	if pm.config.MaxPortfolioRisk <= 0 { // Risk check disabled
+		return false, 0, nil
+	}
 
-    totalPortfolioValue, err := pm.GetTotalPortfolioValue(ctx, marketPrices)
-    if err != nil {
-        return false, 0, fmt.Errorf("could not get total portfolio value for risk check: %w", err)
-    }
-    if totalPortfolioValue == 0 { // Avoid division by zero if portfolio value is zero (e.g. only cash, no positions yet)
-        return false, 0, nil
-    }
+	totalPortfolioValue, err := pm.GetTotalPortfolioValue(ctx, marketPrices)
+	if err != nil {
+		return false, 0, fmt.Errorf("could not get total portfolio value for risk check: %w", err)
+	}
+	if totalPortfolioValue == 0 { // Avoid division by zero if portfolio value is zero (e.g. only cash, no positions yet)
+		return false, 0, nil
+	}
 
-    totalRiskedAmount := 0.0
-    for stockCode, pos := range pm.positions {
-        if pos.StopLoss > 0 { // Only consider positions with a defined stop-loss for this calculation
-            currentPrice, ok := marketPrices[stockCode]
-            if !ok {
-                currentPrice = pos.CurrentPrice
-            }
-            potentialLossPerShare := currentPrice - pos.StopLoss // For long positions
-            if potentialLossPerShare < 0 { potentialLossPerShare = 0 } // Cannot gain from stop loss
-            totalRiskedAmount += potentialLossPerShare * pos.Quantity
-        }
-    }
+	totalRiskedAmount := 0.0
+	for stockCode, pos := range pm.positions {
+		if pos.StopLoss > 0 { // Only consider positions with a defined stop-loss for this calculation
+			currentPrice, ok := marketPrices[stockCode]
+			if !ok {
+				currentPrice = pos.CurrentPrice
+			}
+			potentialLossPerShare := currentPrice - pos.StopLoss // For long positions
+			if potentialLossPerShare < 0 {
+				potentialLossPerShare = 0
+			} // Cannot gain from stop loss
+			totalRiskedAmount += potentialLossPerShare * pos.Quantity
+		}
+	}
 
-    currentPortfolioRiskPercent := (totalRiskedAmount / totalPortfolioValue) * 100
-    isOverRiskLimit := currentPortfolioRiskPercent > pm.config.MaxPortfolioRisk
+	currentPortfolioRiskPercent := (totalRiskedAmount / totalPortfolioValue) * 100
+	isOverRiskLimit := currentPortfolioRiskPercent > pm.config.MaxPortfolioRisk
 
-    if isOverRiskLimit {
-        pm.logger.Printf("Portfolio risk limit check: Current risk %.2f%% exceeds max %.2f%%", 
-            currentPortfolioRiskPercent, pm.config.MaxPortfolioRisk)
-    }
+	if isOverRiskLimit {
+		pm.logger.Printf("Portfolio risk limit check: Current risk %.2f%% exceeds max %.2f%%",
+			currentPortfolioRiskPercent, pm.config.MaxPortfolioRisk)
+	}
 
-    return isOverRiskLimit, currentPortfolioRiskPercent, nil
+	return isOverRiskLimit, currentPortfolioRiskPercent, nil
 }
-
 
 // ClosePositionGenerates an order to close the entire specified position at the given price.
 // This is a utility that might be called by strategies or the executor based on certain conditions.
 func (pm *InMemoryPositionManager) ClosePosition(ctx context.Context, stockCode string, exitPrice float64, reason string) (Order, error) {
-    pm.mu.RLock()
-    pos, exists := pm.positions[stockCode]
-    pm.mu.RUnlock()
+	pm.mu.RLock()
+	pos, exists := pm.positions[stockCode]
+	pm.mu.RUnlock()
 
-    if !exists {
-        return Order{}, fmt.Errorf("no open position found for stock code %s to close", stockCode)
-    }
+	if !exists {
+		return Order{}, fmt.Errorf("no open position found for stock code %s to close", stockCode)
+	}
 
-    return pm.generateExitOrderInternal(pos, exitPrice, reason)
+	return pm.generateExitOrderInternal(pos, exitPrice, reason)
 }
-
-</code>
