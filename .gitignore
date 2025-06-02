@@ -23,7 +23,7 @@ go.work
 
 # Build directories
 /bin/
-/pkg/
+#/pkg/
 
 # Dependency directories
 /vendor/
